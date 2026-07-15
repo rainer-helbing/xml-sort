@@ -4,6 +4,9 @@ namespace XmlSort {
 
     internal static class Program {
         private static async Task<int> Main(string[] args) {
+            var debugOption = new Option<bool>("--debug") { Description = "Sortiert ohne die Dateien zurückzuschreiben" };
+            var removeOption = new Option<string?>("--remove") { Description = "Semikolon-getrennte Liste von XPath-Ausdrücken; passende Elemente werden entfernt. Bsp: //IAttribute[ident='crb_Display']" };
+
             var fileArgument = new Argument<FileInfo>("path") {
                 Description = "Pfad zu einer vorhandenen XML-Datei"
             };
@@ -12,7 +15,9 @@ namespace XmlSort {
             var fileCommand = new Command("file", "Sortiert eine einzelne XML-Datei") { fileArgument };
             fileCommand.SetAction(result => {
                 var file = result.GetValue(fileArgument)!;
-                XmlSorter.SortFile(file);
+                var debug = result.GetValue(debugOption);
+                var removeExpressions = result.GetValue(removeOption)?.Split(';') ?? Array.Empty<string>();
+                XmlSorter.SortFile(file, removeExpressions, debug);
             });
 
             var dirArgument = new Argument<DirectoryInfo>("path") {
@@ -23,10 +28,14 @@ namespace XmlSort {
             var dirCommand = new Command("dir", "Sortiert alle XML-Dateien in einem Verzeichnis") { dirArgument };
             dirCommand.SetAction(result => {
                 var dir = result.GetValue(dirArgument)!;
-                XmlSorter.SortDirectory(dir);
+                var debug = result.GetValue(debugOption);
+                var removeExpressions = result.GetValue(removeOption)?.Split(';') ?? Array.Empty<string>();
+                XmlSorter.SortDirectory(dir, removeExpressions, debug);
             });
 
             var rootCommand = new RootCommand("XmlSort – Sortiert Attribute und Elemente in XML-Dateien") { fileCommand, dirCommand };
+            rootCommand.Add(debugOption);
+            rootCommand.Add(removeOption);
 
             var parseResult = rootCommand.Parse(args);
             return await parseResult.InvokeAsync();

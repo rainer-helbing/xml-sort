@@ -2,11 +2,12 @@ using System.Diagnostics;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
+using System.Xml.XPath;
 
 namespace XmlSort {
 
     internal static class XmlSorter {
-        internal static void SortFile(FileInfo file) {
+        internal static void SortFile(FileInfo file, string[] removeExpressions, bool debug) {
             Console.WriteLine($"Verarbeite: {file.FullName}");
 #if DEBUG
             var sw = Stopwatch.StartNew();
@@ -23,6 +24,8 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
+            Remove(doc, removeExpressions, debug);
+
             if (doc.Root is not null)
                 SortAllElements(doc.Root);
 #if DEBUG
@@ -30,25 +33,29 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
-            var settings = new XmlWriterSettings {
-                Indent = true,       
-                IndentChars = string.Empty,
-                OmitXmlDeclaration = true,
-                Encoding = new UTF8Encoding(false)
-            };
-            using (var stream = new FileStream(file.FullName, FileMode.Create, FileAccess.Write)) {
-                using (var writer = XmlWriter.Create(stream, settings)) {
-                    doc.Save(writer);
+            if (debug) {
+
+            } else { 
+                var settings = new XmlWriterSettings {
+                    Indent = true,
+                    IndentChars = string.Empty,
+                    OmitXmlDeclaration = true,
+                    Encoding = new UTF8Encoding(false)
+                };
+                using (var stream = new FileStream(file.FullName, FileMode.Create, FileAccess.Write)) {
+                    using (var writer = XmlWriter.Create(stream, settings)) {
+                        doc.Save(writer);
+                    }
                 }
-            }
 #if DEBUG
             Console.WriteLine($"  geschrieben:     {sw.ElapsedMilliseconds} ms");
 #endif
+            }
 
             Console.WriteLine($"Fertig:     {file.FullName}");
         }
 
-        internal static void SortDirectory(DirectoryInfo dir) {
+        internal static void SortDirectory(DirectoryInfo dir, string[] removeExpressions, bool debug) {
             var xmlFiles = dir.GetFiles("*.xml", SearchOption.TopDirectoryOnly);
 
             if (xmlFiles.Length == 0) {
@@ -57,7 +64,18 @@ namespace XmlSort {
             }
 
             foreach (var file in xmlFiles)
-                SortFile(file);
+                SortFile(file, removeExpressions, debug);
+        }
+
+        private static void Remove(XDocument doc, string[] expressions, bool debug) {
+            foreach (var xpath in expressions) {
+                List<XElement> nodes = doc.XPathSelectElements(xpath).ToList();
+                if (debug) {
+                    Console.WriteLine($"  {nodes.Count} Ergebnisse für '{xpath}' gefunden");
+                }
+                foreach (var node in nodes)
+                    node.Remove();
+            }
         }
 
         private static void SortAllElements(XElement root) {
