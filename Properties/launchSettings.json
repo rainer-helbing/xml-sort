@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "XmlSort": {
+        "commandName": "Project",
+        "commandLineArgs": "file \"C:\\Users\\helbing\\Desktop\\CRB_Out\\426-2026-Italiano-dev.xml\""
+    }
+  }
+}
