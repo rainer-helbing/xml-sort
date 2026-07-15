@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Xml.Linq;
 
 namespace XmlSort {
@@ -6,13 +7,20 @@ namespace XmlSort {
         internal static async Task SortFileAsync(FileInfo file, CancellationToken ct) {
             Console.WriteLine($"Verarbeite: {file.FullName}");
 
+            var sw = Stopwatch.StartNew();
             var content = await File.ReadAllTextAsync(file.FullName, ct);
             var doc = XDocument.Parse(content);
+            Console.WriteLine($"  gelesen/geparst: {sw.ElapsedMilliseconds} ms");
 
+            sw.Restart();
             if (doc.Root is not null)
-                await SortElementsAsync(doc.Root, ct);
+                await SortAllElementsAsync(doc.Root, ct);
+            Console.WriteLine($"  sortiert:        {sw.ElapsedMilliseconds} ms");
 
+            sw.Restart();
             await File.WriteAllTextAsync(file.FullName, doc.ToString(), ct);
+            Console.WriteLine($"  geschrieben:     {sw.ElapsedMilliseconds} ms");
+
             Console.WriteLine($"Fertig:     {file.FullName}");
         }
 
@@ -28,41 +36,40 @@ namespace XmlSort {
                 await SortFileAsync(file, ct);
         }
 
-        private static async Task SortElementsAsync(XElement root, CancellationToken ct) {
-            using var listLock = new AsyncLock();
-            var workList = new List<ElementWorkItem>();
-            var index = new Dictionary<XElement, ElementWorkItem>();
+        private static Task SortAllElementsAsync(XElement root, CancellationToken ct) {
+            var sw = Stopwatch.StartNew();
+            var levels = new List<List<XElement>>();
+            BuildLevels(root, 0, levels);
+            Console.WriteLine($"      levels gebaut:   {sw.ElapsedMilliseconds} ms ({levels.Count} Ebenen)");
 
-            BuildWorkList(root, index, workList);
+            var options = new ParallelOptions {
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                CancellationToken = ct
+            };
 
-            await Task.WhenAll(workList
-                .ToList()
-                .Select(item => SortElementAsync(item, index, workList, listLock, ct)));
+            // Tiefste Ebene zuerst: Kinder sind fertig, bevor Eltern umordnen.
+            for (int depth = levels.Count - 1; depth >= 0; depth--)
+                Parallel.ForEach(levels[depth], options, SortSingleElement);
+
+            return Task.CompletedTask;
         }
 
-        private static void BuildWorkList(
-            XElement element,
-            Dictionary<XElement, ElementWorkItem> index,
-            List<ElementWorkItem> list) {
+        private static void BuildLevels(XElement element, int depth, List<List<XElement>> levels) {
+            if (levels.Count == depth)
+                levels.Add(new List<XElement>());
+            levels[depth].Add(element);
+
             foreach (var child in element.Elements())
-                BuildWorkList(child, index, list);
-
-            var item = new ElementWorkItem(element);
-            list.Add(item);
-            index[element] = item;
+                BuildLevels(child, depth + 1, levels);
         }
 
-        private static async Task SortElementAsync(
-            ElementWorkItem workItem,
-            Dictionary<XElement, ElementWorkItem> index,
-            List<ElementWorkItem> workList,
-            AsyncLock listLock,
-            CancellationToken ct) {
-            await workItem.ChildrenReady.WaitAsync(ct);
+        private static void SortSingleElement(XElement element) {
+            SortAttributes(element);
 
-            SortAttributes(workItem.Element);
+            var children = element.Elements().ToList();
+            if (children.Count == 0)
+                return;
 
-            var children = workItem.Element.Elements().ToList();
             foreach (var child in children)
                 child.Remove();
 
@@ -70,14 +77,7 @@ namespace XmlSort {
                 .OrderBy(e => e.Name.NamespaceName)
                 .ThenBy(e => e.Name.LocalName)
                 .ThenBy(AttributesSortKey))
-                workItem.Element.Add(child);
-
-            using (await listLock.LockAsync(ct))
-                workList.Remove(workItem);
-
-            var parentXml = workItem.Element.Parent;
-            if (parentXml is not null && index.TryGetValue(parentXml, out var parentWorkItem))
-                parentWorkItem.MarkChildSorted();
+                element.Add(child);
         }
 
         private static void SortAttributes(XElement element) {
