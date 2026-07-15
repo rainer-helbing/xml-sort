@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace XmlSort {
@@ -9,8 +11,13 @@ namespace XmlSort {
 #if DEBUG
             var sw = Stopwatch.StartNew();
 #endif
-            var content = File.ReadAllText(file.FullName);
-            var doc = XDocument.Parse(content);
+            XDocument doc;
+            var readerSettings = new XmlReaderSettings { IgnoreWhitespace = true };
+            using (var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read)) {
+                using (var reader = XmlReader.Create(stream, readerSettings)) {
+                    doc = XDocument.Load(reader);
+                }
+            }
 #if DEBUG
             Console.WriteLine($"  gelesen/geparst: {sw.ElapsedMilliseconds} ms");
 
@@ -23,7 +30,17 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
-            File.WriteAllText(file.FullName, doc.ToString());
+            var settings = new XmlWriterSettings {
+                Indent = true,       
+                IndentChars = string.Empty,
+                OmitXmlDeclaration = true,
+                Encoding = new UTF8Encoding(false)
+            };
+            using (var stream = new FileStream(file.FullName, FileMode.Create, FileAccess.Write)) {
+                using (var writer = XmlWriter.Create(stream, settings)) {
+                    doc.Save(writer);
+                }
+            }
 #if DEBUG
             Console.WriteLine($"  geschrieben:     {sw.ElapsedMilliseconds} ms");
 #endif

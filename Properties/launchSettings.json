@@ -1,8 +1,12 @@
 {
   "profiles": {
-    "XmlSort": {
+    "Sort File": {
         "commandName": "Project",
-        "commandLineArgs": "file \"C:\\Users\\helbing\\Desktop\\CRB_Out\\426-2026-Italiano-dev.xml\""
+        "commandLineArgs": "file \"C:\\Users\\helbing\\Desktop\\CRB_Out\\112-2026-Deutsch-original - Kopie.xml\""
+    },
+    "Sort Directory": {
+        "commandName": "Project",
+        "commandLineArgs": "dir \"C:\\Users\\helbing\\Desktop\\CRB_Out\""
     }
   }
 }
