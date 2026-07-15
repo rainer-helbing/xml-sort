@@ -6,8 +6,12 @@ using System.Xml.XPath;
 
 namespace XmlSort {
 
-    internal static class XmlSorter {
-        internal static void SortFile(FileInfo file, XmlSorterOptions options) {
+    internal class XmlSorter {
+        private readonly XmlSorterOptions _options;
+
+        internal XmlSorter(XmlSorterOptions options) => _options = options;
+
+        internal void SortFile(FileInfo file) {
             Console.WriteLine($"Verarbeite: {file.FullName}");
 #if DEBUG
             var sw = Stopwatch.StartNew();
@@ -24,8 +28,8 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
-            if (options.IgnoreNameSpaces && doc.Root is not null) {
-                doc = new XDocument(StripNamespaces(doc.Root));
+            if (_options.IgnoreNameSpaces) {
+                StripNamespaces(doc);
 #if DEBUG
                 Console.WriteLine($"  Namespaces entfernt: {sw.ElapsedMilliseconds} ms");
 
@@ -33,10 +37,10 @@ namespace XmlSort {
 #endif
             }
 
-            Remove(doc, options);
+            Remove(doc);
 
 #if DEBUG
-            if (options.RemoveExpressions.Length != 0) {
+            if (_options.RemoveExpressions.Length != 0) {
                 Console.WriteLine($"  Elemente entfernt: {sw.ElapsedMilliseconds} ms");
 
                 sw.Restart();
@@ -50,7 +54,7 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
-            if (options.Debug) {
+            if (_options.Debug) {
                 Console.WriteLine($"  '--debug' gesetzt => nicht geschrieben");
             } else {
                 var settings = new XmlWriterSettings {
@@ -72,7 +76,7 @@ namespace XmlSort {
             Console.WriteLine($"Fertig:     {file.FullName}");
         }
 
-        internal static void SortDirectory(DirectoryInfo dir, XmlSorterOptions options) {
+        internal void SortDirectory(DirectoryInfo dir) {
             var xmlFiles = dir.GetFiles("*.xml", SearchOption.TopDirectoryOnly);
 
             if (xmlFiles.Length == 0) {
@@ -81,22 +85,32 @@ namespace XmlSort {
             }
 
             foreach (var file in xmlFiles)
-                SortFile(file, options);
+                SortFile(file);
         }
 
-        private static XElement StripNamespaces(XElement element) =>
-            new XElement(
-                element.Name.LocalName,
-                element.Attributes()
-                    .Where(a => !a.IsNamespaceDeclaration)
-                    .Select(a => new XAttribute(a.Name.LocalName, a.Value)),
-                element.Nodes().Select(n => n is XElement child ? StripNamespaces(child) : n)
-            );
+        private static void StripNamespaces(XDocument doc) {
+            foreach (var element in doc.Descendants()) {
+                if (element.Name.Namespace != XNamespace.None)
+                    element.Name = element.Name.LocalName;
 
-        private static void Remove(XDocument doc, XmlSorterOptions options) {
-            foreach (var xpath in options.RemoveExpressions) {
+                var nsAttrs = element.Attributes()
+                    .Where(a => a.IsNamespaceDeclaration || a.Name.Namespace != XNamespace.None)
+                    .ToList();
+                var toReAdd = nsAttrs
+                    .Where(a => !a.IsNamespaceDeclaration)
+                    .Select(a => new XAttribute(a.Name.LocalName, a.Value))
+                    .ToList();
+                foreach (var attr in nsAttrs)
+                    attr.Remove();
+                foreach (var attr in toReAdd)
+                    element.Add(attr);
+            }
+        }
+
+        private void Remove(XDocument doc) {
+            foreach (var xpath in _options.RemoveExpressions) {
                 List<XElement> nodes = doc.XPathSelectElements(xpath).ToList();
-                if (options.Debug) {
+                if (_options.Debug) {
                     Console.WriteLine($"  {nodes.Count} Ergebnisse für '{xpath}' gefunden");
                 }
                 foreach (var node in nodes)
@@ -104,7 +118,7 @@ namespace XmlSort {
             }
         }
 
-        private static void SortAllElements(XElement root) {
+        private void SortAllElements(XElement root) {
 #if DEBUG
             var sw = Stopwatch.StartNew();
 #endif
@@ -132,7 +146,7 @@ namespace XmlSort {
                 BuildLevels(child, depth + 1, levels);
         }
 
-        private static void SortSingleElement(XElement element) {
+        private void SortSingleElement(XElement element) {
             SortAttributes(element);
 
             var children = element.Elements().ToList();
@@ -142,10 +156,15 @@ namespace XmlSort {
             foreach (var child in children)
                 child.Remove();
 
-            foreach (var child in children
+            IOrderedEnumerable<XElement> sorted = children
                 .OrderBy(e => e.Name.NamespaceName)
                 .ThenBy(e => e.Name.LocalName)
-                .ThenBy(AttributesSortKey))
+                .ThenBy(AttributesSortKey);
+
+            foreach (var xpath in _options.SortExpressions)
+                sorted = sorted.ThenBy(e => (string)e.XPathEvaluate($"string({xpath})"));
+
+            foreach (var child in sorted)
                 element.Add(child);
         }
 
@@ -173,6 +192,10 @@ namespace XmlSort {
         /// XPath Expressions zum Entfernen unerw�nschter Elemente
         /// </summary>
         public string[] RemoveExpressions { get; set; } = [];
+        /// <summary>
+        /// XPath Expressions zum hinzufügen weiterer Sortierkriterien
+        /// </summary>
+        public string[] SortExpressions { get; set; } = [];
         public bool IgnoreNameSpaces { get; set; } = true;
     }
 

@@ -6,6 +6,7 @@ namespace XmlSort {
         private static async Task<int> Main(string[] args) {
             var debugOption = new Option<bool>("--debug") { Description = "Sortiert ohne die Dateien zurückzuschreiben. Vorgabe: false" };
             var removeOption = new Option<string?>("--remove") { Description = "Semikolon-getrennte Liste von XPath-Ausdrücken; passende Elemente werden entfernt. Bsp: //IAttribute[ident='crb_Display']" };
+            var sortOption = new Option<string?>("--sort") { Description = "Semikolon-getrennte Liste von XPath-Ausdrücken, welche zur Ermittlung der Sortierkriterien evaluiert werden. Bsp: ./ident;./address/number" };
             var ignoreNamespacesOption = new Option<bool>("--ignoreSpaces") { Description = "Legt fest, dass Namespaces ignoriert werden.", DefaultValueFactory = (_) => true };
 
             var fileArgument = new Argument<FileInfo>("path") {
@@ -20,9 +21,10 @@ namespace XmlSort {
                 XmlSorterOptions opt = new() {
                     Debug = result.GetValue(debugOption),
                     RemoveExpressions = result.GetValue(removeOption)?.Split(';') ?? Array.Empty<string>(),
+                    SortExpressions = result.GetValue(sortOption)?.Split(';') ?? Array.Empty<string>(),
                     IgnoreNameSpaces = result.GetValue(ignoreNamespacesOption),
                 };
-                XmlSorter.SortFile(file, opt);
+                new XmlSorter(opt).SortFile(file);
             });
 
             var dirArgument = new Argument<DirectoryInfo>("path") {
@@ -36,14 +38,16 @@ namespace XmlSort {
                 XmlSorterOptions opt = new() {
                     Debug = result.GetValue(debugOption),
                     RemoveExpressions = result.GetValue(removeOption)?.Split(';') ?? Array.Empty<string>(),
+                    SortExpressions = result.GetValue(sortOption)?.Split(';') ?? Array.Empty<string>(),
                     IgnoreNameSpaces = result.GetValue(ignoreNamespacesOption),
                 };
-                XmlSorter.SortDirectory(dir, opt);
+                new XmlSorter(opt).SortDirectory(dir);
             });
 
             var rootCommand = new RootCommand("XmlSort – Sortiert Attribute und Elemente in XML-Dateien") { fileCommand, dirCommand };
             rootCommand.Add(debugOption);
             rootCommand.Add(removeOption);
+            rootCommand.Add(sortOption);
             rootCommand.Add(ignoreNamespacesOption);
 
             var parseResult = rootCommand.Parse(args);
