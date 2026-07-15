@@ -7,7 +7,7 @@ using System.Xml.XPath;
 namespace XmlSort {
 
     internal static class XmlSorter {
-        internal static void SortFile(FileInfo file, string[] removeExpressions, bool debug) {
+        internal static void SortFile(FileInfo file, XmlSorterOptions options) {
             Console.WriteLine($"Verarbeite: {file.FullName}");
 #if DEBUG
             var sw = Stopwatch.StartNew();
@@ -24,7 +24,24 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
-            Remove(doc, removeExpressions, debug);
+            if (options.IgnoreNameSpaces && doc.Root is not null) {
+                doc = new XDocument(StripNamespaces(doc.Root));
+#if DEBUG
+                Console.WriteLine($"  Namespaces entfernt: {sw.ElapsedMilliseconds} ms");
+
+                sw.Restart();
+#endif
+            }
+
+            Remove(doc, options);
+
+#if DEBUG
+            if (options.RemoveExpressions.Length != 0) {
+                Console.WriteLine($"  Elemente entfernt: {sw.ElapsedMilliseconds} ms");
+
+                sw.Restart();
+            }
+#endif
 
             if (doc.Root is not null)
                 SortAllElements(doc.Root);
@@ -33,9 +50,9 @@ namespace XmlSort {
 
             sw.Restart();
 #endif
-            if (debug) {
-
-            } else { 
+            if (options.Debug) {
+                Console.WriteLine($"  '--debug' gesetzt => nicht geschrieben");
+            } else {
                 var settings = new XmlWriterSettings {
                     Indent = true,
                     IndentChars = string.Empty,
@@ -48,14 +65,14 @@ namespace XmlSort {
                     }
                 }
 #if DEBUG
-            Console.WriteLine($"  geschrieben:     {sw.ElapsedMilliseconds} ms");
+                Console.WriteLine($"  geschrieben:     {sw.ElapsedMilliseconds} ms");
 #endif
             }
 
             Console.WriteLine($"Fertig:     {file.FullName}");
         }
 
-        internal static void SortDirectory(DirectoryInfo dir, string[] removeExpressions, bool debug) {
+        internal static void SortDirectory(DirectoryInfo dir, XmlSorterOptions options) {
             var xmlFiles = dir.GetFiles("*.xml", SearchOption.TopDirectoryOnly);
 
             if (xmlFiles.Length == 0) {
@@ -64,14 +81,23 @@ namespace XmlSort {
             }
 
             foreach (var file in xmlFiles)
-                SortFile(file, removeExpressions, debug);
+                SortFile(file, options);
         }
 
-        private static void Remove(XDocument doc, string[] expressions, bool debug) {
-            foreach (var xpath in expressions) {
+        private static XElement StripNamespaces(XElement element) =>
+            new XElement(
+                element.Name.LocalName,
+                element.Attributes()
+                    .Where(a => !a.IsNamespaceDeclaration)
+                    .Select(a => new XAttribute(a.Name.LocalName, a.Value)),
+                element.Nodes().Select(n => n is XElement child ? StripNamespaces(child) : n)
+            );
+
+        private static void Remove(XDocument doc, XmlSorterOptions options) {
+            foreach (var xpath in options.RemoveExpressions) {
                 List<XElement> nodes = doc.XPathSelectElements(xpath).ToList();
-                if (debug) {
-                    Console.WriteLine($"  {nodes.Count} Ergebnisse für '{xpath}' gefunden");
+                if (options.Debug) {
+                    Console.WriteLine($"  {nodes.Count} Ergebnisse fÃ¼r '{xpath}' gefunden");
                 }
                 foreach (var node in nodes)
                     node.Remove();
@@ -140,4 +166,14 @@ namespace XmlSort {
             string.Join("\0", element.Attributes()
                 .Select(a => $"{a.Name.NamespaceName}{a.Name.LocalName}={a.Value}"));
     }
+
+    internal class XmlSorterOptions {
+        public bool Debug { get; set; }
+        /// <summary>
+        /// XPath Expressions zum Entfernen unerwï¿½nschter Elemente
+        /// </summary>
+        public string[] RemoveExpressions { get; set; } = [];
+        public bool IgnoreNameSpaces { get; set; } = true;
+    }
+
 }
