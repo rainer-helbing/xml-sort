@@ -149,23 +149,17 @@ namespace XmlSort {
         private void SortSingleElement(XElement element) {
             SortAttributes(element);
 
-            var children = element.Elements().ToList();
+            var children = element.Elements().Select((c, i) => new SortableChild(c, i, _options)).ToList();
             if (children.Count == 0)
                 return;
 
             foreach (var child in children)
-                child.Remove();
+                child.Element.Remove();
 
-            IOrderedEnumerable<XElement> sorted = children
-                .OrderBy(e => e.Name.NamespaceName)
-                .ThenBy(e => e.Name.LocalName)
-                .ThenBy(AttributesSortKey);
+            children.Sort();
 
-            foreach (var xpath in _options.SortExpressions)
-                sorted = sorted.ThenBy(e => (string)e.XPathEvaluate($"string({xpath})"));
-
-            foreach (var child in sorted)
-                element.Add(child);
+            foreach (var child in children)
+                element.Add(child.Element);
         }
 
         private static void SortAttributes(XElement element) {
@@ -184,6 +178,48 @@ namespace XmlSort {
         private static string AttributesSortKey(XElement element) =>
             string.Join("\0", element.Attributes()
                 .Select(a => $"{a.Name.NamespaceName}{a.Name.LocalName}={a.Value}"));
+
+        private sealed class SortableChild : IComparable<SortableChild> {
+            private readonly XmlSorterOptions _options;
+            private readonly int _index;
+            private string? _attrKey;
+            private string? _sortKey;
+
+            public XElement Element { get; }
+
+            public SortableChild(XElement element, int index, XmlSorterOptions options) {
+                Element = element;
+                _index = index;
+                _options = options;
+            }
+
+            private string AttrKey => _attrKey ??= AttributesSortKey(Element);
+            private string SortKey { get { 
+                    if (_sortKey == null) {
+                        foreach (var exp in _options.SortExpressions) {
+                            _sortKey = (string)Element.XPathEvaluate($"string({exp})");
+                            if (!string.IsNullOrEmpty(_sortKey))
+                                break;
+                        }
+                        _sortKey ??= string.Empty;
+                    }
+                    return _sortKey;
+                } } 
+
+            public int CompareTo(SortableChild? other) {
+                if (other is null) return 1;
+                int c = string.Compare(Element.Name.NamespaceName, other.Element.Name.NamespaceName, StringComparison.Ordinal);
+                if (c != 0) return c;
+                c = string.Compare(Element.Name.LocalName, other.Element.Name.LocalName, StringComparison.Ordinal);
+                if (c != 0) return c;
+                c = string.Compare(AttrKey, other.AttrKey, StringComparison.Ordinal);
+                if (c != 0) return c;
+                c = string.Compare(SortKey, other.SortKey, StringComparison.Ordinal);
+                if (c != 0) return c;
+                return _index.CompareTo(other._index);
+            }
+        }
+
     }
 
     internal class XmlSorterOptions {
