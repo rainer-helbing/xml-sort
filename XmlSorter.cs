@@ -4,27 +4,34 @@ using System.Xml.Linq;
 namespace XmlSort {
 
     internal static class XmlSorter {
-        internal static async Task SortFileAsync(FileInfo file, CancellationToken ct) {
+        internal static void SortFile(FileInfo file) {
             Console.WriteLine($"Verarbeite: {file.FullName}");
-
+#if DEBUG
             var sw = Stopwatch.StartNew();
-            var content = await File.ReadAllTextAsync(file.FullName, ct);
+#endif
+            var content = File.ReadAllText(file.FullName);
             var doc = XDocument.Parse(content);
+#if DEBUG
             Console.WriteLine($"  gelesen/geparst: {sw.ElapsedMilliseconds} ms");
 
             sw.Restart();
+#endif
             if (doc.Root is not null)
-                await SortAllElementsAsync(doc.Root, ct);
+                SortAllElements(doc.Root);
+#if DEBUG
             Console.WriteLine($"  sortiert:        {sw.ElapsedMilliseconds} ms");
 
             sw.Restart();
-            await File.WriteAllTextAsync(file.FullName, doc.ToString(), ct);
+#endif
+            File.WriteAllText(file.FullName, doc.ToString());
+#if DEBUG
             Console.WriteLine($"  geschrieben:     {sw.ElapsedMilliseconds} ms");
+#endif
 
             Console.WriteLine($"Fertig:     {file.FullName}");
         }
 
-        internal static async Task SortDirectoryAsync(DirectoryInfo dir, CancellationToken ct) {
+        internal static void SortDirectory(DirectoryInfo dir) {
             var xmlFiles = dir.GetFiles("*.xml", SearchOption.TopDirectoryOnly);
 
             if (xmlFiles.Length == 0) {
@@ -33,25 +40,26 @@ namespace XmlSort {
             }
 
             foreach (var file in xmlFiles)
-                await SortFileAsync(file, ct);
+                SortFile(file);
         }
 
-        private static Task SortAllElementsAsync(XElement root, CancellationToken ct) {
+        private static void SortAllElements(XElement root) {
+#if DEBUG
             var sw = Stopwatch.StartNew();
+#endif
             var levels = new List<List<XElement>>();
             BuildLevels(root, 0, levels);
+#if DEBUG
             Console.WriteLine($"      levels gebaut:   {sw.ElapsedMilliseconds} ms ({levels.Count} Ebenen)");
+#endif
 
             var options = new ParallelOptions {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
-                CancellationToken = ct
+                MaxDegreeOfParallelism = Environment.ProcessorCount
             };
 
             // Tiefste Ebene zuerst: Kinder sind fertig, bevor Eltern umordnen.
             for (int depth = levels.Count - 1; depth >= 0; depth--)
                 Parallel.ForEach(levels[depth], options, SortSingleElement);
-
-            return Task.CompletedTask;
         }
 
         private static void BuildLevels(XElement element, int depth, List<List<XElement>> levels) {
