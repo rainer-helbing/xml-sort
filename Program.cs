@@ -4,10 +4,10 @@ namespace XmlSort {
 
     internal static class Program {
         private static async Task<int> Main(string[] args) {
-            var debugOption = new Option<bool>("--debug") { Description = "Sortiert ohne die Dateien zurückzuschreiben. Vorgabe: false" };
+            var debugOption = new Option<bool>("--debug") { Description = "Sortiert ohne die Dateien zurückzuschreiben. --remove Ausdrücke werden getestet. Vorgabe: false" };
             var removeOption = new Option<string?>("--remove") { Description = "Semikolon-getrennte Liste von XPath-Ausdrücken; passende Elemente werden entfernt. Bsp: //IAttribute[ident='crb_Display']" };
-            var sortOption = new Option<string?>("--sort") { Description = "Semikolon-getrennte Liste von XPath-Ausdrücken, welche zur Ermittlung der Sortierkriterien evaluiert werden. Bsp: ./ident;./address/number" };
-            var ignoreNamespacesOption = new Option<bool>("--ignoreSpaces") { Description = "Legt fest, dass Namespaces ignoriert werden.", DefaultValueFactory = (_) => true };
+            var sortOption = new Option<string?>("--sort") { Description = "Semikolon-getrennte Liste von XPath-Ausdrücken, welche zur Ermittlung der Sortierkriterien zusätzlich evaluiert werden. Bsp: ./ident;./address/number" };
+            var ignoreNamespacesOption = new Option<bool>("--ignoreNameSpaces") { Description = "Legt fest, dass Namespaces ignoriert werden. . Vorgabe: true", DefaultValueFactory = (_) => true };
 
             var fileArgument = new Argument<FileInfo>("path") {
                 Description = "Pfad zu einer vorhandenen XML-Datei"
