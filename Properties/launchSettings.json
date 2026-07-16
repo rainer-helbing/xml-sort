@@ -2,11 +2,11 @@
   "profiles": {
     "Sort File": {
         "commandName": "Project",
-        "commandLineArgs": "--remove \"//IAttribute[ident='crb_Display'];//IAttribute[ident='crb_DisplayLinked'];//IAttribute[ident='crb_Modified'];//IAttribute[ident='crb_ModifiedBy'];//INodeLink/classIdent\" --sort \"./ident\" file \"C:\\Users\\helbing\\Desktop\\CRB_Out\\112-2026-Deutsch-prod.xml\""
+        "commandLineArgs": "--debug --remove \"//IAttribute[ident='crb_Display'];//IAttribute[ident='crb_DisplayLinked'];//IAttribute[ident='crb_Modified'];//IAttribute[ident='crb_ModifiedBy'];//INodeLink/classIdent\" --sort \"./ident\" file \"C:\\Users\\helbing\\Desktop\\CRB_Out\\112-2026-Deutsch-prod.xml\""
     },
     "Sort Directory": {
         "commandName": "Project",
-        "commandLineArgs": "--debug --remove \"//IAttribute[ident='crb_Display'];//IAttribute[ident='crb_DisplayLinked'];//IAttribute[ident='crb_Modified'];//IAttribute[ident='crb_ModifiedBy'];//INodeLink/classIdent\" --sort \"./ident\" dir \"C:\\Users\\helbing\\Desktop\\CRB_Out\""
+        "commandLineArgs": "--remove \"//IAttribute[ident='crb_Display'];//IAttribute[ident='crb_DisplayLinked'];//IAttribute[ident='crb_Modified'];//IAttribute[ident='crb_ModifiedBy'];//INodeLink/classIdent\" --sort \"./ident\" dir \"C:\\Users\\helbing\\Desktop\\CRB_Out\""
     }
   }
 }
